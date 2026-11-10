@@ -11,6 +11,7 @@ Persönlicher Habit Tracker als installierbare Web-App (PWA). Läuft komplett of
 - **Hinweise auf „Heute“:** „Nie zweimal verpassen“, „Serie in Gefahr“ (abends) und Erinnerung an den Wochenrückblick.
 - **Wochenrückblick:** Quote, stärkste und schwächste Gewohnheit, drei Reflexionsfragen und eine Fokus-Gewohnheit für die nächste Woche.
 - **Statistik:** Verlauf als Kalender-Heatmap, Stärke pro Gewohnheit, Quote nach Wochentag und welche Gewohnheiten mit guter Stimmung zusammenhängen.
+- **Aufgaben (To-dos):** gelten für genau einen Tag. Was liegen bleibt, erscheint auf „Heute“ als überfällig und lässt sich mit „→ Heute“ verschieben. Geplante Aufgaben stehen unter „Demnächst“. +5 XP je Aufgabe.
 - **Tagesnotiz:** Stimmung (5 Stufen) und eine kurze Notiz pro Tag.
 - **Nachtragen:** vergangene Tage über die Datumsleiste oder den Monatskalender einer Gewohnheit.
 - **Tageswechsel einstellbar** (Standard 3:00 Uhr): Was du nach Mitternacht abhakst, zählt noch für den Vortag.

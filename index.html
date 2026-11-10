@@ -149,6 +149,22 @@ p{margin:0}
   @keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.18)}100%{transform:scale(1)}}
   @keyframes wiggle{0%,100%{transform:rotate(0)}30%{transform:rotate(-10deg) scale(1.1)}60%{transform:rotate(8deg)}}
 }
+/* Aufgaben */
+.todo{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:56px;cursor:pointer;-webkit-user-select:none;user-select:none}
+.todo .chk{--h:var(--fg);width:34px;height:34px;border-radius:8px;border-width:2px}
+.todo .chk svg{width:20px;height:20px}
+.todo .chk.on{color:var(--bg)}
+.todo .nm{line-height:1.3;overflow-wrap:anywhere}
+.todo .meta{font-size:.78rem;color:var(--muted);margin-top:1px}
+.todo .late{color:var(--warn);font-weight:600}
+.todo.done{background:transparent}
+.todo.done .nm{color:var(--muted);text-decoration:line-through}
+.sec > .label.late-l{color:var(--warn)}
+.ghost.sm{padding:5px 10px;font-size:.8rem;white-space:nowrap}
+.tadd{display:grid;grid-template-columns:minmax(0,1fr) 44px 44px;gap:6px}
+.tadd .datepick{width:auto}
+.tadd .accentbtn{padding:0;font-size:1.4rem;line-height:1}
+@media (prefers-reduced-motion:no-preference){.pop.todo .chk{animation:pop .38s ease}}
 details.more summary{cursor:pointer;color:var(--muted);font-size:.86rem;padding:4px 2px;list-style:none}
 details.more summary::-webkit-details-marker{display:none}
 details.more summary::before{content:"▸ ";}

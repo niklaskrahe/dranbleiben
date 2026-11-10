@@ -3,7 +3,7 @@
 "use strict";
 
 const LSKEY = "dranbleiben.v1";
-const APP_VERSION = "1.0";
+const APP_VERSION = "1.1";
 
 /* ---------- Datum ---------- */
 const pad2 = n => String(n).padStart(2, "0");
@@ -67,13 +67,13 @@ const TEMPLATES = [
 
 /* ---------- Zustand ---------- */
 function blankState() {
-  return { v: 1, habits: [], entries: {}, days: {}, weeks: {}, settings: { name: "", dayStart: 3, sound: false, onboarded: false, t: 0 }, ach: {} };
+  return { v: 1, habits: [], entries: {}, days: {}, weeks: {}, todos: {}, settings: { name: "", dayStart: 3, sound: false, onboarded: false, t: 0 }, ach: {} };
 }
 function normalize(s) {
   const b = blankState();
   const out = { ...b, ...s, settings: { ...b.settings, ...(s.settings || {}) } };
   out.habits = (out.habits || []).map(normHabit);
-  for (const k of ["entries", "days", "weeks", "ach"]) if (!out[k] || typeof out[k] !== "object") out[k] = {};
+  for (const k of ["entries", "days", "weeks", "todos", "ach"]) if (!out[k] || typeof out[k] !== "object") out[k] = {};
   return out;
 }
 function normHabit(h) {
@@ -140,6 +140,19 @@ function weekCount(h, k) { // erledigte Tage in der Woche von k
   for (let i = 0; i < 7; i++) if (doneOn(h, addD(ws, i))) c++;
   return c;
 }
+
+/* ---------- Aufgaben (gelten für genau einen Tag) ---------- */
+const todosAll = () => Object.values(S.todos).filter(t => !t.deleted);
+const todoSort = (a, b) => (a.done - b.done) || (!!b.imp - !!a.imp) || (a.order - b.order);
+const todosOn = k => todosAll().filter(t => t.date === k).sort(todoSort);
+const todosOverdue = T => todosAll().filter(t => !t.done && t.date < T).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : todoSort(a, b)));
+const todosUpcoming = T => todosAll().filter(t => !t.done && t.date > T).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : todoSort(a, b)));
+function addTodo(title, date, imp) {
+  const id = "t" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  S.todos[id] = { id, title: String(title).slice(0, 120), date, imp: !!imp, done: false, doneAt: null, order: Date.now(), deleted: false, t: Date.now() };
+  return S.todos[id];
+}
+function setTodo(td, patch) { Object.assign(td, patch, { t: Date.now() }); }
 
 /* ---------- Kennzahlen pro Gewohnheit ---------- */
 let CACHE = { rev: -1, day: "", hs: {}, agg: null };
@@ -311,9 +324,10 @@ function aggregate() {
     if (st.comeback) a.comeback = true;
     if (st.unit === "Tage") a.bestDays = Math.max(a.bestDays, st.best); else a.bestWeeks = Math.max(a.bestWeeks, st.best);
   }
+  a.todosDone = todosAll().filter(t => t.done).length;
   a.reviews = Object.values(S.weeks).filter(w => w.done).length;
   a.moodDays = Object.values(S.days).filter(d => d.m || (d.n && d.n.trim())).length;
-  a.baseXP += a.perfectDays * 20 + a.reviews * 50;
+  a.baseXP += a.perfectDays * 20 + a.reviews * 50 + a.todosDone * 5;
   CACHE.agg = a;
   return a;
 }
@@ -351,6 +365,8 @@ const ACH = [
   { id: "t50", e: "🎯", n: "Fünfzig", d: "50-mal etwas erledigt", xp: 30, p: a => [a.totalDone, 50] },
   { id: "t250", e: "🎯", n: "Zweihundertfünfzig", d: "250-mal etwas erledigt", xp: 80, p: a => [a.totalDone, 250] },
   { id: "t1000", e: "🚀", n: "Tausend", d: "1000-mal etwas erledigt", xp: 250, p: a => [a.totalDone, 1000] },
+  { id: "todo25", e: "📋", n: "Abgehakt", d: "25 Aufgaben erledigt", xp: 30, p: a => [a.todosDone, 25] },
+  { id: "todo100", e: "🗃️", n: "Macher", d: "100 Aufgaben erledigt", xp: 100, p: a => [a.todosDone, 100] },
   { id: "focus10", e: "⏱️", n: "Zehn Fokusstunden", d: "10 Stunden mit dem Fokus-Timer", xp: 60, p: a => [Math.floor(a.minutes / 60), 10] },
   { id: "focus100", e: "🧘", n: "Hundert Fokusstunden", d: "100 Stunden mit dem Fokus-Timer", xp: 300, p: a => [Math.floor(a.minutes / 60), 100] },
   { id: "early", e: "🌅", n: "Frühaufsteher", d: "20-mal vor 8 Uhr etwas erledigt", xp: 50, p: a => [a.early, 20] },
@@ -392,7 +408,7 @@ function mergeStates(a, b) {
         const cur = out.entries[d]?.[id];
         if (!cur || (e.t || 0) > (cur.t || 0)) (out.entries[d] ||= {})[id] = e;
       }
-  for (const key of ["days", "weeks"])
+  for (const key of ["days", "weeks", "todos"])
     for (const src of [a[key], b[key]])
       for (const [k, v] of Object.entries(src)) if (!out[key][k] || (v.t || 0) > (out[key][k].t || 0)) out[key][k] = v;
   out.settings = (b.settings.t || 0) > (a.settings.t || 0) ? b.settings : a.settings;

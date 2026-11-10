@@ -35,15 +35,15 @@ function refresh() {
   render();
   if (UI.sheet && SHEETS[UI.sheet.type]?.live) renderSheet();
 }
-function render() {
+function render(force) {
   const view = $("#view"), a = document.activeElement;
-  if (a && view.contains(a) && a.matches("textarea,input[type=text],input[type=email],input[type=password],input:not([type])")) { UI.pending = true; return; }
+  if (!force && a && view.contains(a) && a.matches("textarea,input[type=text],input[type=email],input[type=password],input:not([type])")) { UI.pending = true; return; }
   UI.pending = false;
   const onboarding = !habitsAll().length && !S.settings.onboarded;
   $("#tabbar").hidden = onboarding;
   const fk = focusKey();
   view.innerHTML = onboarding ? vOnboard() : VIEWS[UI.tab]();
-  UI.pop = null;
+  UI.pop = null; UI.popT = null;
   for (const b of $$("#tabbar button")) b.dataset.tab === UI.tab ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current");
   if (fk) { const el = view.querySelector(fk); if (el) el.focus({ preventScroll: true }); }
   tick();
@@ -196,7 +196,7 @@ function vToday() {
   if (di.perfect && isT) html += `<div class="banner good"><span>🌟 <b>Perfekter Tag.</b> Alles Geplante ist erledigt.</span></div>`;
 
   if (!act.length) {
-    return html + `<div class="empty"><p>Noch keine Gewohnheiten.</p><button class="accentbtn" data-act="add">+ Erste Gewohnheit anlegen</button></div>`;
+    return html + todoSection(k, isT) + `<div class="empty"><p>Noch keine Gewohnheiten.</p><button class="accentbtn" data-act="add">+ Erste Gewohnheit anlegen</button></div>`;
   }
   const byFocus = (a, b) => (b.id === focusId) - (a.id === focusId) || a.order - b.order;
   const fixed = act.filter(h => scheduledOn(h, k));
@@ -215,6 +215,7 @@ function vToday() {
   if (off.length) html += `<details class="more" data-det="off" ${UI.offOpen ? "open" : ""}><summary>${isT ? "Heute" : "An dem Tag"} nicht geplant (${off.length})</summary><div class="sec">${off.map(h => card(h, k, focusId)).join("")}</div></details>`;
   if (!fixed.length && !weekly.length && act.length) html += `<p class="hint">Für diesen Tag ist nichts geplant${act.some(h => h.start > k) ? " (oder die Gewohnheiten starteten erst später)" : ""}.</p>`;
   html += `<button class="ghost" data-act="add" style="justify-self:start">+ Gewohnheit hinzufügen</button>`;
+  html += todoSection(k, isT);
 
   const dd = S.days[k] || {};
   html += `<section class="panel" aria-label="Tagesnotiz">
@@ -224,6 +225,60 @@ function vToday() {
     <label class="switch"><input type="checkbox" data-input="pause" data-k="${k}" ${dd.pause ? "checked" : ""}><span><b>Pausetag</b> <span class="hint">– krank oder Urlaub: Serien bleiben stehen, nichts zählt als verpasst.</span></span></label>
   </section>`;
   return html;
+}
+
+/* ---------- Aufgaben ---------- */
+const CAL_SVG = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>';
+function todoCard(td, mode) {
+  const meta = mode === "late" ? `<div class="meta"><span class="late">fällig ${fmtShort(td.date)}</span></div>`
+    : mode === "up" ? `<div class="meta"><span>${fmtShort(td.date)}</span></div>` : "";
+  return `<article class="todo${td.done ? " done" : ""}${UI.popT === td.id ? " pop" : ""}" data-act="todoEdit" data-id="${td.id}" tabindex="0">
+    <button class="chk${td.done ? " on" : ""}" data-act="todoToggle" data-id="${td.id}" aria-pressed="${td.done}" aria-label="${esc(td.title)} ${td.done ? "als offen markieren" : "abhaken"}">${CHECK_SVG}</button>
+    <div class="grow"><div class="nm">${td.imp ? '<span aria-label="wichtig">⭐</span> ' : ""}${esc(td.title)}</div>${meta}</div>
+    ${mode === "late" ? `<button class="ghost sm" data-act="todoToday" data-id="${td.id}">→ Heute</button>` : ""}</article>`;
+}
+function todoSection(k, isT) {
+  const T = today(), list = todosOn(k), late = isT ? todosOverdue(T) : [], up = isT ? todosUpcoming(T) : [];
+  const dn = list.filter(t => t.done).length;
+  let h = `<section class="sec" aria-label="Aufgaben"><div class="label"><span>Aufgaben${isT ? "" : ` · ${fmtShort(k)}`}</span><span>${list.length ? `${dn}/${list.length}` : ""}</span></div>`;
+  if (late.length) h += `<div class="label late-l">Überfällig (${late.length})</div>${late.map(t => todoCard(t, "late")).join("")}`;
+  h += list.map(t => todoCard(t, "")).join("");
+  h += `<form id="fTodo" class="tadd" data-k="${k}">
+      <input type="text" name="title" id="todoInput" maxlength="120" autocomplete="off" enterkeyhint="done" placeholder="Neue Aufgabe für ${isT ? "heute" : fmtShort(k)} …" aria-label="Neue Aufgabe">
+      <label class="datepick" title="Anderer Tag">${CAL_SVG}<input type="date" name="date" data-input="todoDate" value="${k}" aria-label="Tag der Aufgabe"></label>
+      <button class="accentbtn" aria-label="Aufgabe hinzufügen">+</button></form>`;
+  if (up.length) h += `<details class="more" data-det="up" ${UI.upOpen ? "open" : ""}><summary>Demnächst (${up.length})</summary><div class="sec">${up.map(t => todoCard(t, "up")).join("")}</div></details>`;
+  return h + `</section>`;
+}
+function todoDialog(td) {
+  dialog(`<form id="fTodoEdit" data-id="${td.id}" style="display:grid;gap:12px">
+      <h3>Aufgabe</h3>
+      <label class="field"><span>Titel</span><input type="text" name="title" maxlength="120" value="${esc(td.title)}"></label>
+      <label class="field"><span>Tag</span><input type="date" name="date" value="${td.date}"></label>
+      <div class="quick"><button type="button" data-act="tdDate" data-d="0">Heute</button><button type="button" data-act="tdDate" data-d="1">Morgen</button><button type="button" data-act="tdDate" data-d="mon">Nächsten Montag</button></div>
+      <label class="switch"><input type="checkbox" name="imp" ${td.imp ? "checked" : ""}><span>Wichtig ⭐ <span class="hint">(steht oben)</span></span></label>
+      <div class="between"><button type="button" class="link danger" data-act="todoDel" data-id="${td.id}">Löschen</button>
+        <span class="btnrow"><button type="button" class="ghost" data-act="dlgNo">Abbrechen</button><button class="primary">Speichern</button></span></div>
+    </form>`);
+}
+function todoToggle(td) {
+  const T = today(), L0 = level().L;
+  if (td.done) { setTodo(td, { done: false, doneAt: null }); commit(); return; }
+  const patch = { done: true, doneAt: T };
+  if (td.date < T && UI.sel === T) patch.date = T; // überfällig heute erledigt → zählt für heute
+  setTodo(td, patch);
+  UI.popT = td.id;
+  commit();
+  buzz(12); sound("done");
+  const day = todosOn(td.date);
+  if (day.length >= 2 && day.every(t => t.done)) { toast(`✅ Alle Aufgaben für ${td.date === T ? "heute" : fmtShort(td.date)} erledigt!`); celebrate(); }
+  else toast("Erledigt · +5 XP");
+  if (level().L > L0) { toast(`⬆️ Level ${level().L} erreicht · ${level().title}`); celebrate(); }
+}
+function todoStats(ws) {
+  let n = 0, d = 0;
+  for (const t of todosAll()) if (t.date >= ws && t.date <= addD(ws, 6)) { n++; if (t.done) d++; }
+  return { n, d };
 }
 
 /* =========================================================
@@ -318,7 +373,7 @@ function moodInsights() {
 }
 function vStats() {
   const T = today(), a = aggregate(), act = habitsActive();
-  if (!habitsAll().length) return `<h1>Statistik</h1><div class="empty"><p>Lege zuerst eine Gewohnheit an.</p><button class="accentbtn" data-act="add">+ Gewohnheit anlegen</button></div>`;
+  if (!habitsAll().length && !todosAll().length) return `<h1>Statistik</h1><div class="empty"><p>Lege zuerst eine Gewohnheit an.</p><button class="accentbtn" data-act="add">+ Gewohnheit anlegen</button></div>`;
   const cw = wstart(T), r = weekRate(cw), p = weekRate(addD(cw, -7));
   let dCls = "", dTxt = "noch keine Vorwoche";
   if (p.rate !== null) { dTxt = `Vorwoche ${pct(p.rate)}`; if (r.rate !== null) dCls = r.rate > p.rate ? "up" : r.rate < p.rate ? "down" : ""; }
@@ -332,7 +387,7 @@ function vStats() {
     <div class="tile"><span class="label">Diese Woche</span><span class="v">${r.rate === null ? "–" : pct(r.rate)}</span><span class="d ${dCls}">${dTxt}</span></div>
     <div class="tile"><span class="label">Perfekte Tage</span><span class="v">${a.perfectDays}</span><span class="d">${a.pCur > 1 ? `${a.pCur} in Folge` : `Rekord: ${a.pBest} in Folge`}</span></div>
     <div class="tile"><span class="label">Längste Serie</span><span class="v">${a.bestDays} Tage</span><span class="d">${bestH && a.bestDays ? esc(`${bestH.emoji} ${bestH.name}`) : "noch keine"}</span></div>
-    <div class="tile"><span class="label">Erledigt</span><span class="v">${a.totalDone}</span><span class="d">${a.minutes ? `${fmtMin(a.minutes)} Fokuszeit` : firstDay() ? `seit ${fmtDM(firstDay())}` : ""}</span></div>
+    <div class="tile"><span class="label">Erledigt</span><span class="v">${a.totalDone}</span><span class="d">${[a.todosDone ? `+ ${a.todosDone} Aufgaben` : "", a.minutes ? `${fmtMin(a.minutes)} Fokus` : ""].filter(Boolean).join(" · ") || (firstDay() ? `seit ${fmtDM(firstDay())}` : "")}</span></div>
   </div>
   <section class="panel">
     <div class="panel-head"><h2>Wochenrückblick</h2><span class="hint">KW ${isoWeek(reviewWs)}</span></div>
@@ -390,6 +445,7 @@ function vAwards() {
     <div class="xplist">
       <b>+10</b><span>je erledigter Gewohnheit</span>
       <b>+5/+10</b><span>Serienbonus ab 7 bzw. 30 Tagen</span>
+      <b>+5</b><span>je erledigter Aufgabe</span>
       <b>+20</b><span>perfekter Tag</span>
       <b>+30</b><span>Wochenziel geschafft</span>
       <b>+1</b><span>je 10 Minuten Fokuszeit</span>
@@ -478,6 +534,7 @@ function vOnboard() {
   <ul class="feat">
     <li><span>✅</span><span>Abhaken, zählen oder mit dem Fokus-Timer Zeit sammeln</span></li>
     <li><span>🔥</span><span>Serien, Stärke und Level halten dich bei der Stange. Ein verpasster Tag wirft dich nicht auf null.</span></li>
+    <li><span>📋</span><span>Aufgaben für einzelne Tage – Liegengebliebenes wandert als „überfällig“ mit</span></li>
     <li><span>📝</span><span>Wochenrückblick mit einer Fokus-Gewohnheit für die nächste Woche</span></li>
     <li><span>📴</span><span>Läuft offline, die Daten bleiben bei dir</span></li>
   </ul>
@@ -694,6 +751,7 @@ function sReview(ws) {
       <div class="tile"><span class="label">Quote</span><span class="v">${r.rate === null ? "–" : pct(r.rate)}</span><span class="d">${p.rate === null ? "keine Vorwoche" : `Vorwoche ${pct(p.rate)}`}</span></div>
       <div class="tile"><span class="label">Perfekte Tage</span><span class="v">${perf}</span><span class="d">von 7</span></div>
     </div>
+    ${(() => { const ts = todoStats(ws); return ts.n ? `<p>📋 Aufgaben: <b>${ts.d} von ${ts.n}</b> erledigt</p>` : ""; })()}
     ${rows.length ? `<section class="panel"><ul class="hl">${sorted.map(x => `<li><div class="hrow" style="${colorVar(x.h)}"><span class="e">${esc(x.h.emoji)}</span><span><span class="n">${esc(x.h.name)}</span><div class="sbar"><i style="width:${(x.rate * 100).toFixed(1)}%"></i></div></span><span class="r"><b>${x.done}/${x.due}</b>${isWeekly(x.h) ? "Wochenziel" : "Tage"}</span></div></li>`).join("")}</ul>
       ${best ? `<p>💪 Am stärksten: <b>${esc(best.h.name)}</b>${worst && worst.rate < best.rate ? ` · Ausbaufähig: <b>${esc(worst.h.name)}</b>` : ""}</p>` : ""}</section>` : `<p class="hint">In dieser Woche war nichts geplant.</p>`}
     <form id="fReview" data-ws="${ws}" style="display:grid;gap:14px">
@@ -865,6 +923,18 @@ const ACT = {
     list.forEach((h, n) => { if (h.order !== n) { h.order = n; h.t = Date.now(); } });
     commit();
   },
+  todoToggle: el => todoToggle(S.todos[el.dataset.id]),
+  todoEdit: el => todoDialog(S.todos[el.dataset.id]),
+  todoToday: el => { setTodo(S.todos[el.dataset.id], { date: today() }); commit(); toast("Auf heute verschoben"); },
+  tdDate: el => {
+    const T = today(), d = el.dataset.d;
+    $("#fTodoEdit").date.value = d === "mon" ? addD(wstart(T), 7) : addD(T, +d);
+  },
+  todoDel: el => {
+    const td = S.todos[el.dataset.id];
+    closeDlg(); setTodo(td, { deleted: true }); commit();
+    toast("Aufgabe gelöscht", { undo: () => { setTodo(td, { deleted: false }); commit(); } });
+  },
   tpl: el => fillTemplate($("#fEdit"), TEMPLATES[+el.dataset.i]),
   emo: el => { const f = $("#fEdit"); f.emoji.value = el.dataset.e; for (const b of $$("[data-act=emo]", f)) b.setAttribute("aria-pressed", b === el); },
   tip: el => {
@@ -899,6 +969,7 @@ const INPUT = {
   note: el => { const d = (S.days[el.dataset.k] ||= {}); d.n = el.value; d.t = Date.now(); persistSoon(); },
 };
 const CHANGE = {
+  todoDate: el => { const k = el.value || today(), i = $("#todoInput"); if (i) i.placeholder = `Neue Aufgabe für ${k === today() ? "heute" : fmtShort(k)} …`; },
   pickDate: el => { if (el.value && el.value <= today()) { UI.sel = el.value; render(); } },
   pause: el => {
     const d = (S.days[el.dataset.k] ||= {});
@@ -911,6 +982,22 @@ const CHANGE = {
   import: el => { const f = el.files?.[0]; el.value = ""; if (f) importData(f); },
 };
 const SUBMIT = {
+  fTodo: f => {
+    const title = f.title.value.trim();
+    if (!title) { f.title.focus(); return; }
+    const date = f.date.value || f.dataset.k;
+    addTodo(title, date, false);
+    commit({ render: false });
+    render(true);
+    $("#todoInput")?.focus({ preventScroll: true });
+    if (date !== f.dataset.k) toast(`Für ${date === today() ? "heute" : fmtShort(date)} geplant`);
+  },
+  fTodoEdit: f => {
+    const td = S.todos[f.dataset.id], title = f.title.value.trim();
+    if (!title) { f.title.focus(); return; }
+    setTodo(td, { title: title.slice(0, 120), date: f.date.value || td.date, imp: f.imp.checked });
+    closeDlg(); commit();
+  },
   fEdit: f => saveEditor(f),
   fValue: f => {
     const h = habitById(f.dataset.id), k = f.dataset.k;
@@ -949,7 +1036,7 @@ document.addEventListener("click", e => {
 });
 document.addEventListener("keydown", e => {
   if (e.key === "Escape") { if (DLG) closeDlg(false); else if (UI.sheet) closeSheet(); return; }
-  if ((e.key === "Enter" || e.key === " ") && e.target.matches?.("article.habit")) { e.preventDefault(); ACT.detail(e.target); }
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches?.("article.habit, article.todo")) { e.preventDefault(); ACT[e.target.dataset.act](e.target); }
 });
 document.addEventListener("input", e => { const k = e.target.dataset?.input; if (k && INPUT[k]) INPUT[k](e.target); });
 document.addEventListener("change", e => {
@@ -962,7 +1049,7 @@ document.addEventListener("change", e => {
   }
 });
 document.addEventListener("submit", e => { e.preventDefault(); SUBMIT[e.target.id]?.(e.target); });
-document.addEventListener("toggle", e => { if (e.target.dataset?.det === "off") UI.offOpen = e.target.open; }, true);
+document.addEventListener("toggle", e => { const d = e.target.dataset?.det; if (d === "off") UI.offOpen = e.target.open; if (d === "up") UI.upOpen = e.target.open; }, true);
 document.addEventListener("focusout", () => { if (UI.pending) setTimeout(() => { if (UI.pending) render(); }, 0); });
 document.addEventListener("pointerover", e => { const el = e.target.closest?.("[data-act=tip]"); if (el && e.pointerType === "mouse") ACT.tip(el); });
 
