@@ -162,7 +162,7 @@ function card(h, k, focusId) {
       <button class="plus" data-act="inc" ${id} aria-label="${esc(h.name)}: eins mehr">+</button></div>`;
   } else {
     ctl = done ? `<button class="chk on" data-act="value" ${id} aria-label="${esc(h.name)}: Minuten bearbeiten">${CHECK_SVG}</button>`
-      : `<button class="chk tm" data-act="timer" ${id} aria-label="${esc(h.name)}: Fokus-Timer starten">${PLAY_SVG}</button>`;
+      : `<div class="tctl"><button class="addmin" data-act="value" ${id} aria-label="${esc(h.name)}: Minuten nachtragen">+</button><button class="chk tm" data-act="timer" ${id} aria-label="${esc(h.name)}: Fokus-Timer starten">${PLAY_SVG}</button></div>`;
   }
   const bar = h.type !== "check" && v > 0 && !done ? `<div class="bar"><i style="width:${(v / t * 100).toFixed(1)}%"></i></div>` : "";
   return `<article class="habit${done ? " done" : ""}${sk && !done ? " skip" : ""}${UI.pop === h.id ? " pop" : ""}" style="${colorVar(h)}" data-act="detail" data-id="${h.id}" tabindex="0">
@@ -781,7 +781,8 @@ function sTimer(id) {
   const presets = [...new Set([defaultMin(h), 15, 25, 45, 60, 90])].sort((a, b) => a - b);
   let ctl;
   if (!TM) ctl = `<div class="presets" role="group" aria-label="Dauer">${presets.map(m => `<button data-act="tmPreset" data-m="${m}" aria-pressed="${m === sel}">${m} min</button>`).join("")}</div>
-      <button class="accentbtn" data-act="tmStart" data-id="${h.id}" style="min-width:200px">Fokus starten</button>`;
+      <button class="accentbtn" data-act="tmStart" data-id="${h.id}" style="min-width:200px">Fokus starten</button>
+      <button class="link" data-act="tmManual" data-id="${h.id}">Vergessen zu starten? Zeit nachtragen</button>`;
   else ctl = `<div class="btnrow" style="justify-content:center">${TM.start ? `<button class="primary" data-act="tmPause">Pause</button>` : `<button class="accentbtn" data-act="tmResume">Weiter</button>`}
       <button class="ghost" data-act="tmStop">Beenden & speichern</button></div><button class="link danger" data-act="tmCancel">Abbrechen ohne Speichern</button>`;
   const body = `<div class="timer" style="${colorVar(h)}">
@@ -851,10 +852,10 @@ function confirmDlg(text, ok = "OK", danger = false) {
 }
 function valueDialog(h, k) {
   const v = valOf(h, k), t = tgt(h), u = unitOf(h), e = entryOf(h, k);
-  const steps = h.type === "timer" ? [5, 15, 25] : [1, 5, 10];
+  const steps = h.type === "timer" ? [15, 30, 60] : [1, 5, 10];
   dialog(`<form id="fValue" data-id="${h.id}" data-k="${k}" style="display:grid;gap:12px">
       <h3>${esc(h.emoji)} ${esc(h.name)}</h3><p class="hint">${fmtLong(k)} · Ziel ${t} ${esc(u)}</p>
-      <label class="field"><span>Wert (${esc(u || "Anzahl")})</span><input type="number" name="v" min="0" step="any" inputmode="decimal" value="${v}"></label>
+      <label class="field"><span>${h.type === "timer" ? "Minuten an diesem Tag (gesamt)" : `Wert (${esc(u || "Anzahl")})`}</span><input type="number" name="v" min="0" step="any" inputmode="decimal" value="${v}"></label>
       <div class="quick">${steps.map(s => `<button type="button" data-act="qAdd" data-d="${s}">+${s}</button>`).join("")}<button type="button" data-act="qSet" data-v="${t}">Ziel (${t})</button><button type="button" data-act="qSet" data-v="0">0</button></div>
       <label class="switch"><input type="checkbox" name="s" ${e?.s ? "checked" : ""}><span>Übersprungen <span class="hint">(zählt nicht als verpasst)</span></span></label>
       <div class="btnrow" style="justify-content:flex-end"><button type="button" class="ghost" data-act="dlgNo">Abbrechen</button><button class="primary">Speichern</button></div>
@@ -942,6 +943,7 @@ const ACT = {
     for (const s of $$(".sel", el.parentElement)) s.classList.remove("sel");
     el.classList.add("sel");
   },
+  tmManual: el => { closeSheet(); valueDialog(habitById(el.dataset.id), today()); },
   tmPreset: el => { UI.tmMin = +el.dataset.m; renderSheet(); },
   tmStart: el => tmStart(habitById(el.dataset.id)),
   tmPause: () => { TM.acc = tmElapsed(); TM.start = 0; saveTimer(); releaseWake(); renderSheet(); render(); },

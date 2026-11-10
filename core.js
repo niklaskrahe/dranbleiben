@@ -3,7 +3,7 @@
 "use strict";
 
 const LSKEY = "dranbleiben.v1";
-const APP_VERSION = "1.1";
+const APP_VERSION = "1.2";
 
 /* ---------- Datum ---------- */
 const pad2 = n => String(n).padStart(2, "0");

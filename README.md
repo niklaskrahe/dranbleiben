@@ -4,7 +4,7 @@ Persönlicher Habit Tracker als installierbare Web-App (PWA). Läuft komplett of
 
 ## Was die App kann
 
-- **Drei Arten von Gewohnheiten:** Abhaken, Zählen (z. B. Seiten, Gläser) und Fokuszeit mit eingebautem Timer.
+- **Drei Arten von Gewohnheiten:** Abhaken, Zählen (z. B. Seiten, Gläser) und Fokuszeit mit eingebautem Timer. Vergessene Fokuszeit lässt sich über das „+“ auf der Karte nachtragen.
 - **Flexible Rhythmen:** täglich, bestimmte Wochentage oder x-mal pro Woche (Tage frei wählbar).
 - **Serien, Stärke und Level:** Serie in Tagen bzw. Wochen. Dazu ein Stärke-Wert, der bei Lücken nur langsam sinkt. XP, Level-Titel und 25 Abzeichen.
 - **Überspringen und Pausetage:** krank oder Urlaub, die Serie bleibt stehen.
